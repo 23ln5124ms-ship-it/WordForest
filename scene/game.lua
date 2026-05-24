@@ -20,7 +20,7 @@ local H = display.contentHeight
 math.randomseed(os.time())
 
 -- ─── Layout constants ─────────────────────────────────────
-local HEADER_H    = 90
+local HEADER_H    = 124
 local WORD_LIST_H = 108
 local PADDING     = 6
 
@@ -31,6 +31,7 @@ local TIMER_SECS = { easy=nil, medium=300, hard=180, expert=120 }
 -- ─── State ───────────────────────────────────────────────
 local state = {}
 local timerText = nil
+local timerPanel = nil
 
 local function resetState()
     state = {
@@ -46,6 +47,8 @@ local function resetState()
         combo=0, bestCombo=0,
         _foundTxt=nil,
     }
+    timerText = nil
+    timerPanel = nil
 end
 
 -- ─── Coord helpers ────────────────────────────────────────
@@ -521,11 +524,17 @@ function scene:create(event)
                              native.systemFontBold, P.ink)
 
     -- Timer
+    if timerPanel then display.remove(timerPanel) end
+    timerPanel = P.roundRect(sg, W/2, 72, 128, 36, 18,
+                             P.paper, P.warmTan, 1.2)
+    timerPanel.alpha = 0.96
     if state.timerRunning then
-        P.text(sg, "TIME", W/2, 60, 9, native.systemFont, P.bark)
-        timerText = P.text(sg, "—:——", W/2, 78, 16,
-                            native.systemFontBold, P.sageDk)
+        P.text(sg, "TIME", W/2, 58, 9, native.systemFont, P.ink)
+        timerText = P.text(sg, "—:——", W/2, 74, 18,
+                            native.systemFontBold, P.ink)
         updateTimerDisplay()
+    else
+        P.text(sg, "NO TIMER", W/2, 72, 10, native.systemFont, P.bark)
     end
 
     -- Words-found counter
@@ -535,12 +544,13 @@ function scene:create(event)
 
     -- ── Hint button ────────────────────────────────────
     local hints    = savedata.getHintsAvailable()
-    local hintBg   = display.newRoundedRect(sg, W/2, HEADER_H-16, 104, 26, 10)
-    hintBg:setFillColor(P.ink[1]*0.08, P.ink[2]*0.08, P.ink[3]*0.08, 0.95)
+    local hintY    = HEADER_H - 18
+    local hintBg   = display.newRoundedRect(sg, W/2, hintY, 118, 28, 12)
+    hintBg:setFillColor(P.ink[1]*0.12, P.ink[2]*0.12, P.ink[3]*0.12, 0.95)
     hintBg.strokeWidth = 1.5
     hintBg:setStrokeColor(P.ink[1],P.ink[2],P.ink[3], 0.28)
 
-    local hintTxt = P.text(sg, "💡 HINT ("..hints..")", W/2, HEADER_H-15, 11,
+    local hintTxt = P.text(sg, "💡 HINT ("..hints..")", W/2, hintY, 12,
                             native.systemFontBold, P.cream)
 
     -- ── Grid ──────────────────────────────────────────
@@ -562,7 +572,7 @@ function scene:create(event)
                { foundTxt=foundTxt, hintTxt=hintTxt, comboText=comboText })
 
     -- Hint tap
-    local hintOverlay = display.newRect(sg, W/2, HEADER_H-16, 96, 23)
+    local hintOverlay = display.newRect(sg, W/2, hintY, 118, 28)
     hintOverlay.alpha = 0
     hintOverlay.isHitTestable = true
     hintOverlay:addEventListener("tap", function()
