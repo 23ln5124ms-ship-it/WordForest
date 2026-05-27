@@ -7,6 +7,12 @@ local P        = require("modules.palette")
 
 local W = display.contentWidth
 local H = display.contentHeight
+local ACTW = display.actualContentWidth
+local ACTH = display.actualContentHeight
+local ORX = display.screenOriginX
+local ORY = display.screenOriginY
+local CX = ORX + ACTW * 0.5
+local CY = ORY + ACTH * 0.5
 
 -- ─── Floating particle ───────────────────────────────────
 local symbols = { "✦", "❋", "✿", "◈", "◆", "❧", "✾" }
@@ -17,12 +23,12 @@ local warmCols = {
 local function spawnParticle(parent, delay)
     local sym  = symbols[math.random(#symbols)]
     local col  = warmCols[math.random(#warmCols)]
-    local px   = math.random(W)
+    local px   = math.random(ORX, ORX + ACTW)
     local size = math.random(10, 22)
 
     local leaf = display.newText({
         parent = parent, text = sym,
-        x = px, y = H + 20,
+        x = px, y = ORY + ACTH + 20,
         fontSize = size,
     })
     leaf:setTextColor(col[1], col[2], col[3])
@@ -34,7 +40,7 @@ local function spawnParticle(parent, delay)
         local dx  = math.random(-70, 70)
         transition.to(leaf, {
             time     = dur,
-            y        = -30,
+            y        = ORY - 30,
             x        = leaf.x + dx,
             rotation = math.random(-360, 360),
             alpha    = 0,
@@ -48,12 +54,12 @@ end
 function scene:create(event)
     local sg = self.view
 
-    -- Warm cream background
-    local bg = display.newRect(sg, W/2, H/2, W, H)
+    -- Warm cream background (fill actual screen/safe area)
+    local bg = display.newRect(sg, CX, CY, ACTW, ACTH)
     bg:setFillColor(unpack(P.cream))
 
     -- Soft radial glow
-    local glow = display.newCircle(sg, W/2, H * 0.42, W * 0.75)
+    local glow = display.newCircle(sg, CX, ORY + ACTH * 0.42, ACTW * 0.75)
     glow:setFillColor(P.rose[1], P.rose[2], P.rose[3])
     glow.alpha = 0
 
@@ -61,44 +67,43 @@ function scene:create(event)
     sg:insert(particles)
 
     -- Decorative rings
-    local ring1 = display.newCircle(sg, W/2, H * 0.42, 90)
+    local ring1 = display.newCircle(sg, CX, ORY + ACTH * 0.42, 90)
     ring1:setFillColor(0,0,0,0)
     ring1.strokeWidth = 1.5
     ring1:setStrokeColor(P.ink[1], P.ink[2], P.ink[3], 0.4)
     ring1.alpha = 0
 
-    local ring2 = display.newCircle(sg, W/2, H * 0.42, 125)
+    local ring2 = display.newCircle(sg, CX, ORY + ACTH * 0.42, 125)
     ring2:setFillColor(0,0,0,0)
     ring2.strokeWidth = 1.0
     ring2:setStrokeColor(P.ink[1], P.ink[2], P.ink[3], 0.25)
     ring2.alpha = 0
 
     -- Logo leaf
-    local logoLeaf = P.text(sg, "🌿", W/2, H * 0.38, 64)
+    local logoLeaf = P.text(sg, "🌿", CX, ORY + ACTH * 0.38, 64)
     logoLeaf.alpha = 0
     logoLeaf.yScale = 0.3
 
     -- Title
-    local title = P.text(sg, "WORD FOREST", W/2, H * 0.47, 22,
+    local title = P.text(sg, "WORD FOREST", CX, ORY + ACTH * 0.47, 22,
                          native.systemFontBold, P.moss)
     title.alpha = 0
 
-    local sub = P.text(sg, "find · discover · grow", W/2, H * 0.52, 12,
+    local sub = P.text(sg, "find · discover · grow", CX, ORY + ACTH * 0.52, 12,
                        native.systemFont, P.bark)
     sub.alpha = 0
 
     -- Loading bar
-    local barW    = W * 0.62
-    local barBg   = display.newRoundedRect(sg, W/2, H - 110, barW, 6, 4)
+    local barW    = ACTW * 0.62
+    local barBg   = display.newRoundedRect(sg, CX, ORY + ACTH - 110, barW, 6, 4)
     barBg:setFillColor(P.ink[1], P.ink[2], P.ink[3], 0.10)
     barBg.alpha = 0
-
-    local barFill = display.newRoundedRect(sg, W/2 - barW/2, H - 110, 2, 6, 4)
+    local barFill = display.newRoundedRect(sg, CX - barW/2, ORY + ACTH - 110, 2, 6, 4)
     barFill.anchorX = 0
     barFill:setFillColor(P.mint[1], P.mint[2], P.mint[3])
     barFill.alpha = 0
 
-    local loadTxt = P.text(sg, "Planting seeds…", W/2, H - 132, 12,
+    local loadTxt = P.text(sg, "Planting seeds…", CX, ORY + ACTH - 132, 12,
                             native.systemFontBold, P.ink)
     loadTxt.alpha = 0
 

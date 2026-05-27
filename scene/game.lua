@@ -17,6 +17,11 @@ local P         = require("modules.palette")
 
 local W = display.contentWidth
 local H = display.contentHeight
+local ACTW = display.actualContentWidth
+local ACTH = display.actualContentHeight
+local ORX = display.screenOriginX
+local ORY = display.screenOriginY
+local CX = ORX + ACTW * 0.5
 math.randomseed(os.time())
 
 -- ─── Layout constants ─────────────────────────────────────
@@ -51,7 +56,7 @@ local function resetState()
     timerPanel = nil
 end
 
--- ─── Coord helpers ────────────────────────────────────────
+-- ─── Coord helpers ───────────────────────────────────────
 local function cellToXY(r, c)
     return state.gridOffX + (c-0.5)*state.cellSize,
            state.gridOffY + (r-0.5)*state.cellSize
@@ -67,7 +72,7 @@ local function inGrid(r, c)
     return r>=1 and r<=state.gridSize and c>=1 and c<=state.gridSize
 end
 
--- ─── 8-direction snap ────────────────────────────────────
+-- ─── 8-direction snap ───────────────────────────────────
 local function snapSelection(r1, c1, r2, c2)
     local dr = r2-r1; local dc = c2-c1
     local ax = math.abs(dc); local ay = math.abs(dr)
@@ -150,7 +155,7 @@ local function buildWordList(parent, words, cat, startY)
     parent:insert(container)
 
     local cols  = (#words <= 6) and 2 or 3
-    local colW  = (W - 16) / cols
+    local colW  = (ACTW - 16) / cols
     local rowH  = 20
     local padX  = 8
 
@@ -175,7 +180,7 @@ local function buildWordList(parent, words, cat, startY)
     return container
 end
 
--- ─── Timer display ───────────────────────────────────────
+-- ─── Timer display ─────────────────────────────────────
 local function updateTimerDisplay()
     if not timerText then return end
     local secs = math.max(0, math.floor(state.timerRemaining))
@@ -304,7 +309,7 @@ local function checkSelection(gameGroup, cat, scoreDisplay, hud)
     if streakBonus > 0 then
         popStr = popStr .. " +" .. streakBonus .. " 🌱"
     end
-    local popup = P.text(gameGroup, popStr, W/2, H/2-28, hasBonus and 20 or 16,
+    local popup = P.text(gameGroup, popStr, CX, ORY + ACTH*0.5 - 28, hasBonus and 20 or 16,
                           native.systemFontBold,
                           popCol)
     transition.to(popup, { time=1050, y=popup.y-58, alpha=0,
@@ -338,8 +343,8 @@ end
 -- ─── Build grid ──────────────────────────────────────────
 local function buildGrid(parent, cat)
     local sz    = state.gridSize
-    local availW = W - PADDING*2
-    local availH = H - HEADER_H - WORD_LIST_H - PADDING*2
+    local availW = ACTW - PADDING*2
+    local availH = ACTH - HEADER_H - WORD_LIST_H - PADDING*2
     local cellSz = math.min(availW/sz, availH/sz)
     -- For expert (16×16) allow a smaller cell floor
     cellSz = math.max(cellSz, 14)
@@ -347,8 +352,8 @@ local function buildGrid(parent, cat)
 
     local totalW = sz * cellSz
     local totalH = sz * cellSz
-    state.gridOffX = (W - totalW) / 2
-    state.gridOffY = HEADER_H + PADDING
+    state.gridOffX = ORX + (ACTW - totalW) / 2
+    state.gridOffY = ORY + HEADER_H + PADDING
 
     -- Grid background
     local gridBg = display.newRect(parent,
@@ -393,7 +398,7 @@ end
 
 -- ─── Touch handler ───────────────────────────────────────
 local function setupTouch(gameGroup, cat, scoreDisplay, hud)
-    local overlay = display.newRect(gameGroup, W/2, H/2, W, H)
+    local overlay = display.newRect(gameGroup, CX, ORY + ACTH/2, ACTW, ACTH)
     overlay.alpha = 0
     overlay.isHitTestable = true
 
@@ -449,8 +454,20 @@ local function setupTouch(gameGroup, cat, scoreDisplay, hud)
     end)
 end
 
--- ─── Scene lifecycle ─────────────────────────────────────
-function scene:create(event)
+-- ─── Helpers to allow rebuilding when composer reuses scene ──
+local function clearSceneView(sg)
+    if not sg then return end
+    for i = sg.numChildren, 1, -1 do
+        local child = sg[i]
+        if child then display.remove(child) end
+    end
+    if scene._timerHandle then timer.cancel(scene._timerHandle); scene._timerHandle = nil end
+    if scene._foundTimer  then timer.cancel(scene._foundTimer);  scene._foundTimer  = nil end
+    timerText = nil
+    timerPanel = nil
+end
+
+local function initScene(self, event)
     local sg     = self.view
     local params = event.params or {}
     resetState()
@@ -493,14 +510,14 @@ function scene:create(event)
     end
 
     -- ── Background ─────────────────────────────────────
-    local bgRect = display.newRect(sg, W/2, H/2, W, H)
+    local bgRect = display.newRect(sg, CX, ORY + ACTH/2, ACTW, ACTH)
     bgRect:setFillColor(unpack(cat.bgColor))
 
     -- ── Header ─────────────────────────────────────────
-    local headerBg = display.newRect(sg, W/2, HEADER_H/2, W, HEADER_H)
+    local headerBg = display.newRect(sg, CX, ORY + HEADER_H/2, ACTW, HEADER_H)
     headerBg:setFillColor(P.parchment[1],P.parchment[2],P.parchment[3])
     -- bottom border line
-    local hBorder = display.newRect(sg, W/2, HEADER_H, W, 1)
+    local hBorder = display.newRect(sg, CX, ORY + HEADER_H, ACTW, 1)
     hBorder:setFillColor(P.warmTan[1],P.warmTan[2],P.warmTan[3])
 
     -- Back button
@@ -511,46 +528,47 @@ function scene:create(event)
 
     -- Category label
     local modeLabel = state.isDailyMode and "DAILY" or cat.name
-    local modeT = P.text(sg, cat.icon.."  "..modeLabel, W/2, 24, 14,
+    local modeT = P.text(sg, cat.icon.."  "..modeLabel, CX, ORY + 24, 14,
                           native.systemFontBold, P.ink)
-    P.text(sg, string.upper(difficulty), W/2, 42, 9,
+    P.text(sg, string.upper(difficulty), CX, ORY + 42, 9,
             native.systemFont, P.ink)
 
     -- Score
-    P.text(sg, "SCORE", W-42, 18, 9, native.systemFontBold, P.ink)
-    local scoreDisplay = P.text(sg, "0", W-42, 36, 18,
+    local rightEdge = ORX + ACTW - 42
+    P.text(sg, "SCORE", rightEdge, 18, 9, native.systemFontBold, P.ink)
+    local scoreDisplay = P.text(sg, "0", rightEdge, 36, 18,
                                  native.systemFontBold, cat.accentColor)
-    local comboText = P.text(sg, "STREAK: 0", W-42, 58, 10,
+    local comboText = P.text(sg, "STREAK: 0", rightEdge, 58, 10,
                              native.systemFontBold, P.ink)
 
     -- Timer
     if timerPanel then display.remove(timerPanel) end
-    timerPanel = P.roundRect(sg, W/2, 72, 128, 36, 18,
+    timerPanel = P.roundRect(sg, CX, ORY + 72, 128, 36, 18,
                              P.paper, P.warmTan, 1.2)
     timerPanel.alpha = 0.96
     if state.timerRunning then
-        P.text(sg, "TIME", W/2, 58, 9, native.systemFont, P.ink)
-        timerText = P.text(sg, "—:——", W/2, 74, 18,
+        P.text(sg, "TIME", CX, ORY + 58, 9, native.systemFont, P.ink)
+        timerText = P.text(sg, "—:——", CX, ORY + 74, 18,
                             native.systemFontBold, P.ink)
         updateTimerDisplay()
     else
-        P.text(sg, "NO TIMER", W/2, 72, 10, native.systemFont, P.bark)
+        P.text(sg, "NO TIMER", CX, ORY + 72, 10, native.systemFont, P.bark)
     end
 
     -- Words-found counter
-    local foundTxt = P.text(sg, "0/"..state.totalWords, 42, 52, 14,
+    local foundTxt = P.text(sg, "0/"..state.totalWords, ORX + 42, ORY + 52, 14,
                               native.systemFontBold, P.ink)
     state._foundTxt = foundTxt
 
     -- ── Hint button ────────────────────────────────────
     local hints    = savedata.getHintsAvailable()
-    local hintY    = HEADER_H - 18
-    local hintBg   = display.newRoundedRect(sg, W/2, hintY, 118, 28, 12)
+    local hintY    = ORY + HEADER_H - 18
+    local hintBg   = display.newRoundedRect(sg, CX, hintY, 118, 28, 12)
     hintBg:setFillColor(P.ink[1]*0.12, P.ink[2]*0.12, P.ink[3]*0.12, 0.95)
     hintBg.strokeWidth = 1.5
     hintBg:setStrokeColor(P.ink[1],P.ink[2],P.ink[3], 0.28)
 
-    local hintTxt = P.text(sg, "💡 HINT ("..hints..")", W/2, hintY, 12,
+    local hintTxt = P.text(sg, "💡 HINT ("..hints..")", CX, hintY, 12,
                             native.systemFontBold, P.cream)
 
     -- ── Grid ──────────────────────────────────────────
@@ -560,19 +578,22 @@ function scene:create(event)
 
     -- ── Word list ──────────────────────────────────────
     local wordListY = state.gridOffY + state.gridSize * state.cellSize + 8
-    local wlBg = display.newRect(sg, W/2, wordListY + 50, W, WORD_LIST_H)
+    local listTop   = wordListY + 8
+    local listBottom = ORY + ACTH - 12
+    local listHeight = math.max(WORD_LIST_H, listBottom - listTop)
+    local wlBg = display.newRect(sg, CX, listTop + listHeight/2, ACTW, listHeight)
     wlBg:setFillColor(P.paper[1],P.paper[2],P.paper[3])
-    local wlBorder = display.newRect(sg, W/2, wordListY, W, 1.5)
+    local wlBorder = display.newRect(sg, CX, listTop, ACTW, 1.5)
     wlBorder:setFillColor(P.ink[1],P.ink[2],P.ink[3], 0.22)
 
-    buildWordList(sg, state.placedWords, cat, wordListY + 6)
+    buildWordList(sg, state.placedWords, cat, listTop + 6)
 
     -- ── Touch ──────────────────────────────────────────
     setupTouch(gameGroup, cat, scoreDisplay,
                { foundTxt=foundTxt, hintTxt=hintTxt, comboText=comboText })
 
     -- Hint tap
-    local hintOverlay = display.newRect(sg, W/2, hintY, 118, 28)
+    local hintOverlay = display.newRect(sg, CX, hintY, 118, 28)
     hintOverlay.alpha = 0
     hintOverlay.isHitTestable = true
     hintOverlay:addEventListener("tap", function()
@@ -582,7 +603,7 @@ function scene:create(event)
         end)
     end)
 
-    -- ── Timer loop ─────────────────────────────────────
+    -- ── Timer loop ─────────────────────────────────
     if state.timerRunning then
         local function tick()
             if state.paused then return end
@@ -611,9 +632,32 @@ function scene:create(event)
         end
     end
     self._foundTimer = timer.performWithDelay(300, updateCounter, 0)
+    self._built = true
 end
 
-function scene:show(event) end
+function scene:create(event)
+    initScene(scene, event)
+end
+
+function scene:show(event)
+    if event.phase ~= "will" then return end
+    local params = event.params or {}
+    -- If scene wasn't built yet, init is already done in create.
+    if not self._built then return end
+    -- If no params provided, nothing to change
+    if not next(params) then return end
+
+    -- If difficulty/category changed, rebuild the scene
+    local changed = false
+    if params.difficulty and params.difficulty ~= state.difficulty then changed = true end
+    if params.categoryId and state.categoryData and params.categoryId ~= state.categoryData.id then changed = true end
+    if params.mode and params.mode ~= (state.isDailyMode and "daily" or nil) then changed = true end
+
+    if changed then
+        clearSceneView(self.view)
+        initScene(self, event)
+    end
+end
 
 function scene:hide(event)
     if event.phase == "will" then

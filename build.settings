@@ -1,0 +1,13 @@
+-- Minimal build.settings for Android builds
+settings = {
+    android = {
+        usesPermissions = {
+            "android.permission.INTERNET",
+        },
+        versionCode = 1,
+    },
+    orientation = {
+        default = "portrait",
+        supported = { "portrait" },
+    },
+}
